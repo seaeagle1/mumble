@@ -32,9 +32,41 @@
 #include "../mumble_plugin_win32.h"
 #include <QtCore/QtCore>
 
+static DWORD lotro_version = 0;
+static DWORD lotro_versionLS = 0;
+
 static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front, float *camera_top, std::string &context, std::wstring &identity) {
 	for (int i=0;i<3;i++)
 		avatar_pos[i] = avatar_front[i] = avatar_top[i] = camera_pos[i] = camera_front[i] = camera_top[i] = 0.0f;
+
+	if( lotro_version == 0 )
+	{
+		PROCESSENTRY32 pe;
+		WCHAR *exe;
+		pe.dwSize = sizeof(pe);
+		HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (hSnap != INVALID_HANDLE_VALUE) {
+			BOOL ok = Process32First(hSnap, &pe);
+
+			while (ok) {
+				if (wcscmp(pe.szExeFile, L"lotroclient.exe")==0) {
+					exe = pe.szExeFile;
+					break;
+				}
+				ok = Process32Next(hSnap, &pe);
+			}
+			CloseHandle(hSnap);
+		}
+
+		VS_FIXEDFILEINFO info;
+		if(GetFileVersionInfo(exe, NULL, sizeof(info), &info))
+		{
+			lotro_version = info.dwFileVersionMS;
+			lotro_versionLS = info.dwFileVersionLS;
+		} else {
+			lotro_version = -1;
+		}
+	}
 
 	bool ok;
 
@@ -65,17 +97,33 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 
 		nPtr = pointer to character name (unique on a server)
 	*/
+	if(lotro_version == -1 || 
+		(HIWORD(lotro_version) >= 3 && LOWORD(lotro_version) >= 2 && HIWORD(lotro_versionLS) >= 4))
+	{  // Vol III, book 2
+		ok = peekProc((BYTE *) 0x010D0890, o, 12) &&
+			 peekProc((BYTE *) 0x010D0888, l, 2) &&
+			 peekProc((BYTE *) 0x010D0884, &r, 1) &&
+			 peekProc((BYTE *) 0x010D088C, &i, 1) &&
+			 peekProc((BYTE *)(pModule + 0x00CE7228), &hPtr, 4);
 
-	ok = peekProc((BYTE *) 0x010D0890, o, 12) &&
-	     peekProc((BYTE *) 0x010D0888, l, 2) &&
-	     peekProc((BYTE *) 0x010D0884, &r, 1) &&
-	     peekProc((BYTE *) 0x010D088C, &i, 1) &&
-	     peekProc((BYTE *)(pModule + 0x00CE7228), &hPtr, 4);
+		if (! ok)
+			return false;
 
-	if (! ok)
-		return false;
+		ok = peekProc((BYTE *)(hPtr  + 0x000007FC), &h, 4);
+	}
+	else
+	{  // Vol III, book 1 patch 1
+		ok = peekProc((BYTE *) 0x010A9DC0, o, 12) &&
+			 peekProc((BYTE *) 0x010A9DB8, l, 2) &&
+			 peekProc((BYTE *) 0x010A9DB4, &r, 1) &&
+			 peekProc((BYTE *) 0x010A9DBC, &i, 1) &&
+			 peekProc((BYTE *)(pModule + 0x00DA084c), &hPtr, 4);
 
-	ok = peekProc((BYTE *)(hPtr  + 0x000007FC), &h, 4);
+		if (! ok)
+			return false;
+
+		ok = peekProc((BYTE *)(hPtr  + 0x000007FC), &h, 4);
+	}
 
 	if (! ok)
 		return false;

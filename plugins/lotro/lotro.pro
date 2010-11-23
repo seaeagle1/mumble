@@ -2,5 +2,5 @@ include(../plugins.pri)
 
 TARGET		= lotro
 SOURCES		= lotro.cpp
-LIBS		+= -luser32
+LIBS		+= -lVersion -luser32
 CONFIG		+= qt
