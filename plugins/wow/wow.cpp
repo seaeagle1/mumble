@@ -1,5 +1,5 @@
 /* Copyright (C) 2009-2010, deKarl <dekarl@users.sourceforge.net>
-   Copyright (C) 2005-2011, Thorvald Natvig <thorvald@natvig.com>
+   Copyright (C) 2005-2012, Thorvald Natvig <thorvald@natvig.com>
 
    All rights reserved.
 
@@ -42,13 +42,17 @@ uint32_t p_playerBase;
 uint64_t g_playerGUID;
 
 /*
- * To update visit http://www.mmowned.com/forums/wow-memory-editing/
+ * To update visit http://www.ownedcore.com/forums/world-of-warcraft/world-of-warcraft-bots-programs/wow-memory-editing
  * and look for a thread called [WoW][TheVersion] Info Dump Thread.
+ *
+ * Where possible, I have included in the comments the different names some posters
+ * call each value, to ease in upgrading. "[_]" means the value name may or may not
+ * have an underscore in it depending on who's posting the offset.
  */
-static uint32_t ptr_ClientConnection=0x00C79CD8;
-static size_t off_ObjectManager=0x2ED0;
-static uint32_t ptr_WorldFrame=0x00B74364;
-static size_t off_CameraOffset=0x7E20;
+static uint32_t ptr_ClientConnection=0x009BE678; // ClientConnection or CurMgrPointer
+static size_t off_ObjectManager=0x463C; // objectManager or CurMgrOffset
+static uint32_t ptr_WorldFrame=0x00AD7870; // Camera[_]Pointer
+static size_t off_CameraOffset=0x80D0; // Camera[_]Offset
 
 uint32_t getInt32(uint32_t ptr) {
 	uint32_t result;
@@ -164,15 +168,15 @@ uint32_t getPlayerBase() {
 
 	playerBase=0;
 
-	gClientConnection=getInt32(ptr_ClientConnection);
+	gClientConnection=getInt32((uint32_t)pModule + ptr_ClientConnection);
 	sCurMgr=getInt32(gClientConnection + off_ObjectManager);
 	if (sCurMgr != 0) {
-		playerGUID=getInt64(sCurMgr+0xC0);
+		playerGUID=getInt64(sCurMgr+0xC8); // localGUID
 		if (playerGUID != 0) {
 			g_playerGUID = playerGUID;
-			curObj=getInt32(sCurMgr+0xAC);
+			curObj=getInt32(sCurMgr+0xC0); // firstObject
 			while (curObj != 0) {
-				nextObj=getInt32(curObj + 0x3C);
+				nextObj=getInt32(curObj + 0x3C); // nextObject
 				GUID=getInt64(curObj + 0x30);
 				if (playerGUID == GUID) {
 					playerBase = curObj;
@@ -189,7 +193,7 @@ uint32_t getPlayerBase() {
 	return playerBase;
 }
 
-static const unsigned long nameStorePtr        = 0x00C5D930 + 0x8;  // Player name database
+static const unsigned long nameStorePtr        = 0x009BE6B8 + 0x8;  // Player name database
 static const unsigned long nameMaskOffset      = 0x024;  // Offset for the mask used with GUID to select a linked list
 static const unsigned long nameBaseOffset      = 0x01c;  // Offset for the start of the name linked list
 static const unsigned long nameStringOffset    = 0x020;  // Offset to the C string in a name structure
@@ -197,8 +201,8 @@ static const unsigned long nameStringOffset    = 0x020;  // Offset to the C stri
 void getPlayerName(std::wstring &identity) {
 	unsigned long mask, base, offset, current, shortGUID, testGUID;
 
-	mask = getInt32(nameStorePtr + nameMaskOffset);
-	base = getInt32(nameStorePtr + nameBaseOffset);
+	mask = getInt32((uint32_t)pModule + nameStorePtr + nameMaskOffset);
+	base = getInt32((uint32_t)pModule + nameStorePtr + nameBaseOffset);
 
 	shortGUID = g_playerGUID & 0xffffffff;  // Only half the guid is used to check for a hit
 	if (mask == 0xffffffff) {
@@ -229,7 +233,7 @@ void getCamera(float camera_pos[3], float camera_front[3], float camera_top[3]) 
 	uint32_t ptr1, ptr2;
 	float buf[4][3];
 
-	ptr1 = getInt32(ptr_WorldFrame);
+	ptr1 = getInt32((uint32_t)pModule + ptr_WorldFrame);
 	ptr2 = getInt32(ptr1+off_CameraOffset);
 
 	peekProc((BYTE *) ptr2+0x08, buf, sizeof(buf));
@@ -330,7 +334,7 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 	// ... which isn't a right-hand coordinate system.
 
 	float pos[3];
-	ok = ok && peekProc((BYTE *) p_playerBase + 0x798, pos, sizeof(float)*3);
+	ok = ok && peekProc((BYTE *) p_playerBase + 0x790, pos, sizeof(float)*3);
 	if (! ok) {
 		if (g_playerGUID == 0xffffffffffffffff) {
 			return false;
@@ -349,12 +353,12 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 	avatar_pos[2] = pos[0];
 
 	float heading=0.0;
-	ok = ok && peekProc((BYTE *) p_playerBase + 0x7A8, &heading, sizeof(heading));
+	ok = ok && peekProc((BYTE *) p_playerBase + 0x7A0, &heading, sizeof(heading));
 	if (! ok)
 		return false;
 
 	float pitch=0.0;
-	ok = ok && peekProc((BYTE *) p_playerBase + 0x7AC, &pitch, sizeof(pitch));
+	ok = ok && peekProc((BYTE *) p_playerBase + 0x7A4, &pitch, sizeof(pitch));
 	if (! ok)
 		return false;
 
@@ -410,10 +414,10 @@ static int trylock(const std::multimap<std::wstring, unsigned long long int> &pi
 }
 
 static const std::wstring longdesc() {
-	return std::wstring(L"Supports World of Warcraft 3.3.5, with identity support.");
+	return std::wstring(L"Supports World of Warcraft 4.2.2 (15050), with identity support.");
 }
 
-static std::wstring description(L"World of Warcraft 3.3.5");
+static std::wstring description(L"World of Warcraft 4.2.2 (15050)");
 
 static std::wstring shortname(L"World of Warcraft");
 

@@ -27,13 +27,17 @@
    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
+#include "mumble_pch.hpp"
+
 #include "GlobalShortcut.h"
-#include "MainWindow.h"
-#include "Global.h"
-#include "Database.h"
+
+#include "AudioInput.h"
 #include "ClientUser.h"
 #include "Channel.h"
-#include "AudioInput.h"
+#include "Database.h"
+#include "Global.h"
+#include "MainWindow.h"
 
 /*!
   \class ShortcutKeyWidget
@@ -597,6 +601,7 @@ GlobalShortcutConfig::GlobalShortcutConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
 
 	bool canSuppress = GlobalShortcutEngine::engine->canSuppress();
+	bool canDisable = GlobalShortcutEngine::engine->canDisable();
 
 	qtwShortcuts->setColumnCount(canSuppress ? 4 : 3);
 	qtwShortcuts->setItemDelegate(new ShortcutDelegate(qtwShortcuts));
@@ -606,10 +611,24 @@ GlobalShortcutConfig::GlobalShortcutConfig(Settings &st) : ConfigWidget(st) {
 	qtwShortcuts->header()->setResizeMode(2, QHeaderView::Stretch);
 	if (canSuppress)
 		qtwShortcuts->header()->setResizeMode(3, QHeaderView::ResizeToContents);
+	qcbEnableGlobalShortcuts->setVisible(canDisable);
 }
 
 void GlobalShortcutConfig::commit() {
 	qtwShortcuts->closePersistentEditor(qtwShortcuts->currentItem(), qtwShortcuts->currentColumn());
+}
+
+void GlobalShortcutConfig::on_qcbEnableGlobalShortcuts_stateChanged(int state) {
+	bool b = state == Qt::Checked;
+	qpbAdd->setEnabled(b);
+	if (!b)
+		qpbRemove->setEnabled(false);
+	else
+		qpbRemove->setEnabled(qtwShortcuts->currentItem() ? true : false);
+	qtwShortcuts->setEnabled(b);
+
+	// We have to enable this here. Otherwise, adding new shortcuts wouldn't work.
+	GlobalShortcutEngine::engine->setEnabled(b);
 }
 
 void GlobalShortcutConfig::on_qpbAdd_clicked(bool) {
@@ -661,11 +680,14 @@ QIcon GlobalShortcutConfig::icon() const {
 void GlobalShortcutConfig::load(const Settings &r) {
 	qlShortcuts = r.qlShortcuts;
 	bExpert = r.bExpert;
+	qcbEnableGlobalShortcuts->setCheckState(r.bShortcutEnable ? Qt::Checked : Qt::Unchecked);
+	on_qcbEnableGlobalShortcuts_stateChanged(qcbEnableGlobalShortcuts->checkState());
 	reload();
 }
 
 void GlobalShortcutConfig::save() const {
 	s.qlShortcuts = qlShortcuts;
+	s.bShortcutEnable = qcbEnableGlobalShortcuts->checkState() == Qt::Checked;
 }
 
 QTreeWidgetItem *GlobalShortcutConfig::itemForShortcut(const Shortcut &sc) const {
@@ -717,6 +739,7 @@ void GlobalShortcutConfig::reload() {
 void GlobalShortcutConfig::accept() const {
 	GlobalShortcutEngine::engine->bNeedRemap = true;
 	GlobalShortcutEngine::engine->needRemap();
+	GlobalShortcutEngine::engine->setEnabled(g.s.bShortcutEnable);
 }
 
 bool GlobalShortcutConfig::expert(bool exp) {
@@ -779,6 +802,17 @@ void GlobalShortcutEngine::run() {
 }
 
 bool GlobalShortcutEngine::canSuppress() {
+	return false;
+}
+
+void GlobalShortcutEngine::setEnabled(bool) {
+}
+
+bool GlobalShortcutEngine::enabled() {
+	return true;
+}
+
+bool GlobalShortcutEngine::canDisable() {
 	return false;
 }
 
@@ -857,8 +891,10 @@ bool GlobalShortcutEngine::handleButton(const QVariant &button, bool down) {
 }
 
 void GlobalShortcutEngine::add(GlobalShortcut *gs) {
-	if (! GlobalShortcutEngine::engine)
+	if (! GlobalShortcutEngine::engine) {
 		GlobalShortcutEngine::engine = GlobalShortcutEngine::platformInit();
+		GlobalShortcutEngine::engine->setEnabled(g.s.bShortcutEnable);
+	}
 
 	GlobalShortcutEngine::engine->qmShortcuts.insert(gs->idx, gs);
 	GlobalShortcutEngine::engine->bNeedRemap = true;

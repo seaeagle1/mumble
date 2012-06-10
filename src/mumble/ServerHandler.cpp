@@ -28,20 +28,23 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "mumble_pch.hpp"
+
 #include "ServerHandler.h"
-#include "MainWindow.h"
+
 #include "AudioInput.h"
 #include "AudioOutput.h"
 #include "Cert.h"
-#include "Message.h"
-#include "User.h"
 #include "Connection.h"
-#include "Global.h"
 #include "Database.h"
-#include "PacketDataStream.h"
+#include "Global.h"
+#include "MainWindow.h"
+#include "Message.h"
 #include "NetworkConfig.h"
 #include "OSInfo.h"
+#include "PacketDataStream.h"
 #include "SSL.h"
+#include "User.h"
 
 ServerHandlerMessageEvent::ServerHandlerMessageEvent(const QByteArray &msg, unsigned int mtype, bool flush) : QEvent(static_cast<QEvent::Type>(SERVERSEND_EVENT)) {
 	qbaMsg = msg;
@@ -189,6 +192,7 @@ void ServerHandler::udpReady() {
 			case MessageHandler::UDPVoiceCELTAlpha:
 			case MessageHandler::UDPVoiceCELTBeta:
 			case MessageHandler::UDPVoiceSpeex:
+			case MessageHandler::UDPVoiceOpus:
 				handleVoicePacket(msgFlags, pds, msgType);
 				break;
 			default:
@@ -323,13 +327,49 @@ void ServerHandler::run() {
 	delete qtsSock;
 }
 
+#ifdef Q_OS_WIN
+extern DWORD WinVerifySslCert(const QByteArray& cert);
+#endif
+
 void ServerHandler::setSslErrors(const QList<QSslError> &errors) {
-	bStrong = false;
 	qscCert = cConnection->peerCertificateChain();
+	QList<QSslError> newErrors = errors;
+
+#ifdef Q_OS_WIN
+	bool bRevalidate = false;
+	QList<QSslError> errorsToRemove;
+	foreach (const QSslError& e, errors) {
+		switch (e.error()) {
+		case QSslError::UnableToGetLocalIssuerCertificate:
+		case QSslError::SelfSignedCertificateInChain:
+			bRevalidate = true;
+			errorsToRemove << e;
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (bRevalidate) {
+		QByteArray der = qscCert.first().toDer();
+		DWORD errorStatus = WinVerifySslCert(der);
+		if (errorStatus == CERT_TRUST_NO_ERROR) {
+			foreach (const QSslError& e, errorsToRemove) {
+				newErrors.removeOne(e);
+			}
+		}
+		if (newErrors.isEmpty()) {
+			cConnection->proceedAnyway();
+			return;
+		}
+	}
+#endif
+
+	bStrong = false;
 	if ((qscCert.size() > 0)  && (QString::fromLatin1(qscCert.at(0).digest(QCryptographicHash::Sha1).toHex()) == Database::getDigest(qsHostName, usPort)))
 		cConnection->proceedAnyway();
 	else
-		qlErrors = errors;
+		qlErrors = newErrors;
 }
 
 void ServerHandler::sendPing() {
@@ -502,7 +542,11 @@ void ServerHandler::serverConnectionConnected() {
 	QMap<int, CELTCodec *>::const_iterator i;
 	for (i=g.qmCodecs.constBegin(); i != g.qmCodecs.constEnd(); ++i)
 		mpa.add_celt_versions(i.key());
-
+#ifdef USE_OPUS
+	mpa.set_opus(true);
+#else
+	mpa.set_opus(false);
+#endif
 	sendMessage(mpa);
 
 	{

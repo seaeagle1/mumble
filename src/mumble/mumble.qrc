@@ -63,5 +63,7 @@
  <file>mumble_he.qm</file>
  <file>mumble_ru.qm</file>
  <file>mumble_sv.qm</file>
+ <file>mumble_zh_CN.qm</file>
+ <file>mumble_tr.qm</file>
 </qresource>
 </RCC>

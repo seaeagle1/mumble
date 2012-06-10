@@ -29,11 +29,14 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "mumble_pch.hpp"
+
 #include "Settings.h"
-#include "Log.h"
-#include "Global.h"
+
 #include "AudioInput.h"
 #include "Cert.h"
+#include "Log.h"
+#include "Global.h"
 #include "../../overlay/overlay.h"
 #include "../../overlay/overlay_blacklist.h"
 
@@ -279,6 +282,7 @@ Settings::Settings() {
 	bWhisperFriends = false;
 
 	uiDoublePush = 0;
+	uiPTTHold = 0;
 	bExpert = false;
 
 #ifdef NO_UPDATE_CHECK
@@ -306,6 +310,7 @@ Settings::Settings() {
 	bStateInTray = true;
 	bUsage = true;
 	bShowUserCount = false;
+	bChatBarUseSelection = false;
 	wlWindowLayout = LayoutClassic;
 	bShowContextMenuInMenuBar = false;
 
@@ -372,6 +377,8 @@ Settings::Settings() {
 	dMaxPacketDelay = 0.0f;
 
 	iMaxLogBlocks = 0;
+
+	bShortcutEnable = true;
 
 	for (int i=Log::firstMsgType; i<=Log::lastMsgType; ++i)
 		qmMessages.insert(i, Settings::LogConsole | Settings::LogBalloon | Settings::LogTTS);
@@ -523,6 +530,7 @@ void Settings::load(QSettings* settings_ptr) {
 	SAVELOAD(bDeaf, "audio/deaf");
 	LOADENUM(atTransmit, "audio/transmit");
 	SAVELOAD(uiDoublePush, "audio/doublepush");
+	SAVELOAD(uiPTTHold, "audio/ptthold");
 	SAVELOAD(bTxAudioCue, "audio/pushclick");
 	SAVELOAD(qsTxAudioCueOn, "audio/pushclickon");
 	SAVELOAD(qsTxAudioCueOff, "audio/pushclickoff");
@@ -626,13 +634,14 @@ void Settings::load(QSettings* settings_ptr) {
 	SAVELOAD(qsLastServer, "ui/server");
 	LOADENUM(ssFilter, "ui/serverfilter");
 #ifndef NO_UPDATE_CHECK
-	SAVELOAD(bPluginOverlayCheck, "ui/updatecheck");
+	SAVELOAD(bUpdateCheck, "ui/updatecheck");
 	SAVELOAD(bPluginOverlayCheck, "ui/plugincheck");
 #endif
 	SAVELOAD(bHideInTray, "ui/hidetray");
 	SAVELOAD(bStateInTray, "ui/stateintray");
 	SAVELOAD(bUsage, "ui/usage");
 	SAVELOAD(bShowUserCount, "ui/showusercount");
+	SAVELOAD(bChatBarUseSelection, "ui/chatbaruseselection");
 	SAVELOAD(qsImagePath, "ui/imagepath");
 	SAVELOAD(bShowContextMenuInMenuBar, "ui/showcontextmenuinmenubar");
 	SAVELOAD(qbaConnectDialogGeometry, "ui/connect/geometry");
@@ -657,6 +666,8 @@ void Settings::load(QSettings* settings_ptr) {
 	QByteArray qba = qvariant_cast<QByteArray> (settings_ptr->value(QLatin1String("net/certificate")));
 	if (! qba.isEmpty())
 		kpCertificate = CertWizard::importCert(qba);
+
+	SAVELOAD(bShortcutEnable, "shortcut/enable");
 
 	int nshorts = settings_ptr->beginReadArray(QLatin1String("shortcuts"));
 	for (int i=0; i<nshorts; i++) {
@@ -797,6 +808,7 @@ void Settings::save() {
 	SAVELOAD(bDeaf, "audio/deaf");
 	SAVELOAD(atTransmit, "audio/transmit");
 	SAVELOAD(uiDoublePush, "audio/doublepush");
+	SAVELOAD(uiPTTHold, "audio/ptthold");
 	SAVELOAD(bTxAudioCue, "audio/pushclick");
 	SAVELOAD(qsTxAudioCueOn, "audio/pushclickon");
 	SAVELOAD(qsTxAudioCueOff, "audio/pushclickoff");
@@ -904,6 +916,7 @@ void Settings::save() {
 	SAVELOAD(bStateInTray, "ui/stateintray");
 	SAVELOAD(bUsage, "ui/usage");
 	SAVELOAD(bShowUserCount, "ui/showusercount");
+	SAVELOAD(bChatBarUseSelection, "ui/chatbaruseselection");
 	SAVELOAD(qsImagePath, "ui/imagepath");
 	SAVELOAD(bShowContextMenuInMenuBar, "ui/showcontextmenuinmenubar");
 	SAVELOAD(qbaConnectDialogGeometry, "ui/connect/geometry");
@@ -927,6 +940,8 @@ void Settings::save() {
 
 	QByteArray qba = CertWizard::exportCert(kpCertificate);
 	settings_ptr->setValue(QLatin1String("net/certificate"), qba);
+
+	SAVELOAD(bShortcutEnable, "shortcut/enable");
 
 	settings_ptr->beginWriteArray(QLatin1String("shortcuts"));
 	int idx = 0;

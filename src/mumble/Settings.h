@@ -29,10 +29,19 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SETTINGS_H
-#define _SETTINGS_H
+#ifndef SETTINGS_H_
+#define SETTINGS_H_
 
-#include "mumble_pch.hpp"
+#include <QtCore/QVariant>
+#include <QtCore/QList>
+#include <QtCore/QPair>
+#include <QtCore/QRectF>
+#include <QtCore/QSettings>
+#include <QtCore/QStringList>
+#include <QtGui/QColor>
+#include <QtGui/QFont>
+#include <QtNetwork/QSslCertificate>
+#include <QtNetwork/QSslKey>
 
 // Global helper classes to spread variables around across threads
 // especially helpfull to initialize things like the stored
@@ -159,6 +168,7 @@ struct Settings {
 
 	AudioTransmit atTransmit;
 	quint64 uiDoublePush;
+	quint64 uiPTTHold;
 
 	bool bExpert;
 
@@ -213,6 +223,7 @@ struct Settings {
 	int iLCDUserViewSplitterWidth;
 	QMap<QString, bool> qmLCDDevices;
 
+	bool bShortcutEnable;
 	QList<Shortcut> qlShortcuts;
 
 	enum MessageLog { LogNone = 0x00, LogConsole = 0x01, LogTTS = 0x02, LogBalloon = 0x04, LogSoundfile = 0x08};
@@ -238,6 +249,7 @@ struct Settings {
 	bool bStateInTray;
 	bool bUsage;
 	bool bShowUserCount;
+	bool bChatBarUseSelection;
 	QByteArray qbaConnectDialogHeader, qbaConnectDialogGeometry;
 	bool bShowContextMenuInMenuBar;
 

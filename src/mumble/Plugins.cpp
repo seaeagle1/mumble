@@ -28,14 +28,17 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "mumble_pch.hpp"
+
 #include "Plugins.h"
+
+#include "Global.h"
 #include "Log.h"
+#include "MainWindow.h"
 #include "Message.h"
 #include "ServerHandler.h"
-#include "MainWindow.h"
-#include "WebFetch.h"
 #include "../../plugins/mumble_plugin.h"
-#include "Global.h"
+#include "WebFetch.h"
 
 static ConfigWidget *PluginConfigDialogNew(Settings &st) {
 	return new PluginConfig(st);
@@ -213,7 +216,7 @@ Plugins::Plugins(QObject *p) : QObject(p) {
 #ifdef Q_OS_WIN
 	// According to MS KB Q131065, we need this to OpenProcess()
 
-	hToken = FALSE;
+	hToken = NULL;
 
 	if (!OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, FALSE, &hToken)) {
 		if (GetLastError() == ERROR_NO_TOKEN) {

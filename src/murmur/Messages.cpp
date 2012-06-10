@@ -29,6 +29,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "murmur_pch.h"
+
 #include "User.h"
 #include "Channel.h"
 #include "ACL.h"
@@ -38,7 +40,6 @@
 #include "Connection.h"
 #include "Server.h"
 #include "ServerUser.h"
-#include "DBus.h"
 #include "Version.h"
 
 #define MSG_SETUP(st) \
@@ -120,7 +121,7 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 	// Fetch ID and stored username.
 	// Since this may call DBus, which may recall our dbus messages, this function needs
 	// to support re-entrancy, and also to support the fact that sessions may go away.
-	int id = authenticate(uSource->qsName, pw, uSource->qslEmail, uSource->qsHash, uSource->bVerified, uSource->peerCertificateChain());
+	int id = authenticate(uSource->qsName, pw, uSource->uiSession, uSource->qslEmail, uSource->qsHash, uSource->bVerified, uSource->peerCertificateChain());
 
 	uSource->iId = id >= 0 ? id : -1;
 
@@ -205,12 +206,14 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 	} else {
 		uSource->qlCodecs.append(static_cast<qint32>(0x8000000b));
 	}
+	uSource->bOpus = msg.opus();
 	recheckCodecVersions();
 
 	MumbleProto::CodecVersion mpcv;
 	mpcv.set_alpha(iCodecAlpha);
 	mpcv.set_beta(iCodecBeta);
 	mpcv.set_prefer_alpha(bPreferAlpha);
+	mpcv.set_opus(bOpus);
 	sendMessage(uSource, mpcv);
 
 	// Transmit channel tree
@@ -368,7 +371,7 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 		mpss.set_permissions(ChanACL::All);
 	} else {
 		QMutexLocker qml(&qmCache);
-		ChanACL::hasPermission(uSource, root, ChanACL::Enter, acCache);
+		ChanACL::hasPermission(uSource, root, ChanACL::Enter, &acCache);
 		mpss.set_permissions(acCache.value(uSource)->value(root));
 	}
 
@@ -387,7 +390,9 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 		mpsug.set_positional(qvSuggestPositional.toBool());
 	if (! qvSuggestPushToTalk.isNull())
 		mpsug.set_push_to_talk(qvSuggestPushToTalk.toBool());
-	sendMessage(uSource, mpsug);
+	if (mpsug.ByteSize() > 0) {
+		sendMessage(uSource, mpsug);
+	}
 
 	log(uSource, "Authenticated");
 
@@ -501,6 +506,10 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 	if (msg.has_mute() || msg.has_deaf() || msg.has_suppress() || msg.has_priority_speaker()) {
 		if (pDstServerUser->iId == 0) {
 			PERM_DENIED_TYPE(SuperUser);
+			return;
+		}
+		if (uSource->cChannel->bTemporary) {
+			PERM_DENIED_TYPE(TemporaryChannel);
 			return;
 		}
 		if (! hasPermission(uSource, pDstServerUser->cChannel, ChanACL::MuteDeafen) || msg.suppress()) {
@@ -1077,7 +1086,7 @@ void Server::msgTextMessage(ServerUser *uSource, MumbleProto::TextMessage &msg) 
 		if (! c)
 			return;
 
-		if (! ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, acCache)) {
+		if (! ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, &acCache)) {
 			PERM_DENIED(uSource, c, ChanACL::TextMessage);
 			return;
 		}
@@ -1095,7 +1104,7 @@ void Server::msgTextMessage(ServerUser *uSource, MumbleProto::TextMessage &msg) 
 		if (! c)
 			return;
 
-		if (! ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, acCache)) {
+		if (! ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, &acCache)) {
 			PERM_DENIED(uSource, c, ChanACL::TextMessage);
 			return;
 		}
@@ -1107,7 +1116,7 @@ void Server::msgTextMessage(ServerUser *uSource, MumbleProto::TextMessage &msg) 
 
 	while (! q.isEmpty()) {
 		Channel *c = q.dequeue();
-		if (ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, acCache)) {
+		if (ChanACL::hasPermission(uSource, c, ChanACL::TextMessage, &acCache)) {
 			foreach(Channel *sub, c->qlChannels)
 				q.enqueue(sub);
 			foreach(User *p, c->qlUsers)
@@ -1119,7 +1128,7 @@ void Server::msgTextMessage(ServerUser *uSource, MumbleProto::TextMessage &msg) 
 		unsigned int session = msg.session(i);
 		ServerUser *u = qhUsers.value(session);
 		if (u) {
-			if (! ChanACL::hasPermission(uSource, u->cChannel, ChanACL::TextMessage, acCache)) {
+			if (! ChanACL::hasPermission(uSource, u->cChannel, ChanACL::TextMessage, &acCache)) {
 				PERM_DENIED(uSource, u->cChannel, ChanACL::TextMessage);
 				return;
 			}
@@ -1580,6 +1589,7 @@ void Server::msgUserStats(ServerUser*uSource, MumbleProto::UserStats &msg) {
 
 		foreach(int v, pDstServerUser->qlCodecs)
 			msg.add_celt_versions(v);
+		msg.set_opus(pDstServerUser->bOpus);
 
 		msg.set_address(pDstServerUser->haAddress.toStdString());
 	}

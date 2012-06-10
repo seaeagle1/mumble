@@ -28,8 +28,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _AUDIOCONFIGDIALOG_H
-#define _AUDIOCONFIGDIALOG_H
+#ifndef AUDIOCONFIGDIALOG_H_
+#define AUDIOCONFIGDIALOG_H_
 
 #include "ConfigDialog.h"
 
@@ -68,6 +68,7 @@ class AudioInputDialog : public ConfigWidget, public Ui::AudioInput {
 		void on_qsQuality_valueChanged(int v);
 		void on_qsAmp_valueChanged(int v);
 		void on_qsDoublePush_valueChanged(int v);
+		void on_qsPTTHold_valueChanged(int v);
 		void on_qsNoise_valueChanged(int v);
 		void on_qsIdle_valueChanged(int v);
 		void on_qcbTransmit_currentIndexChanged(int v);

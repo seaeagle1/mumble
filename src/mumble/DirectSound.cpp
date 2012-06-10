@@ -28,7 +28,10 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "mumble_pch.hpp"
+
 #include "DirectSound.h"
+
 #include "MainWindow.h"
 #include "Plugins.h"
 #include "User.h"
@@ -305,7 +308,7 @@ void DXAudioOutput::run() {
 	}
 
 	if (! g.s.doPositionalAudio())
-		dwMask = KSAUDIO_SPEAKER_MONO;
+		dwMask = KSAUDIO_SPEAKER_STEREO;
 
 	for (int i=0;i<32;i++) {
 		if (dwMask & (1 << i)) {
@@ -324,7 +327,7 @@ void DXAudioOutput::run() {
 
 	ZeroMemory(&wfx, sizeof(wfx));
 	wfx.Format.wFormatTag = WAVE_FORMAT_PCM;
-	wfx.Format.nChannels = qMax(ns, 1);
+	wfx.Format.nChannels = qMax(ns, 2);
 	wfx.Format.nSamplesPerSec = SAMPLE_RATE;
 	wfx.Format.nBlockAlign = sizeof(short) * wfx.Format.nChannels;
 	wfx.Format.nAvgBytesPerSec = wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign;
@@ -343,7 +346,7 @@ void DXAudioOutput::run() {
 
 	ZeroMemory(&wfx, sizeof(wfx));
 	wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-	wfx.Format.nChannels = ns;
+	wfx.Format.nChannels = qMax(ns, 2);
 	wfx.Format.nSamplesPerSec = SAMPLE_RATE;
 	wfx.Format.nBlockAlign = sizeof(short) * wfx.Format.nChannels;
 	wfx.Format.nAvgBytesPerSec = wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign;

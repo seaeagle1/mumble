@@ -28,12 +28,15 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "murmur_pch.h"
+
+#include "DBus.h"
+
+#include "Connection.h"
+#include "Message.h"
 #include "Server.h"
 #include "ServerUser.h"
 #include "ServerDB.h"
-#include "Connection.h"
-#include "Message.h"
-#include "DBus.h"
 
 QDBusArgument &operator<<(QDBusArgument &a, const PlayerInfo &s) {
 	a.beginStructure();
@@ -285,7 +288,7 @@ void MurmurDBus::setTextureSlot(int &res, int id, const QByteArray &texture) {
 		res = reply.value();
 }
 
-void MurmurDBus::authenticateSlot(int &res, QString &uname, const QList<QSslCertificate> &, const QString &, bool, const QString &pw) {
+void MurmurDBus::authenticateSlot(int &res, QString &uname, int sessionId, const QList<QSslCertificate> &, const QString &, bool, const QString &pw) {
 	QDBusInterface remoteApp(qsAuthService,qsAuthPath,QString(),qdbc);
 	QDBusMessage msg = remoteApp.call(bReentrant ? QDBus::BlockWithGui : QDBus::Block, "authenticate",uname,pw);
 	QDBusError err = msg;
@@ -303,7 +306,7 @@ void MurmurDBus::authenticateSlot(int &res, QString &uname, const QList<QSslCert
 			}
 		}
 		if (ok && (msg.arguments().count() >= 3)) {
-			server->setTempGroups(uid, NULL, msg.arguments().at(2).toStringList());
+			server->setTempGroups(uid, sessionId, NULL, msg.arguments().at(2).toStringList());
 		}
 		if (ok) {
 			server->log(QString("DBus Authenticate success for %1: %2").arg(uname).arg(uid));
@@ -698,7 +701,7 @@ void MurmurDBus::setAuthenticator(const QDBusObjectPath &path, bool reentrant, c
 void MurmurDBus::setTemporaryGroups(int channel, int userid, const QStringList &groups, const QDBusMessage &msg) {
 	CHANNEL_SETUP_VAR(channel);
 
-	server->setTempGroups(userid, cChannel, groups);
+	server->setTempGroups(userid, 0, cChannel, groups);
 }
 
 PlayerInfo::PlayerInfo(const User *p) {

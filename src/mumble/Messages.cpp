@@ -29,29 +29,31 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "MainWindow.h"
-#include "AudioWizard.h"
-#include "AudioInput.h"
-#include "ConnectDialog.h"
-#include "User.h"
-#include "Channel.h"
-#include "ACLEditor.h"
-#include "BanEditor.h"
-#include "UserEdit.h"
-#include "Connection.h"
-#include "ServerHandler.h"
+#include "mumble_pch.hpp"
+
 #include "About.h"
-#include "GlobalShortcut.h"
-#include "VersionCheck.h"
-#include "UserModel.h"
+#include "ACLEditor.h"
+#include "AudioInput.h"
 #include "AudioStats.h"
-#include "Plugins.h"
-#include "Log.h"
-#include "Overlay.h"
-#include "Global.h"
+#include "AudioWizard.h"
+#include "BanEditor.h"
+#include "Channel.h"
+#include "Connection.h"
+#include "ConnectDialog.h"
 #include "Database.h"
-#include "ViewCert.h"
+#include "Global.h"
+#include "GlobalShortcut.h"
+#include "Log.h"
+#include "MainWindow.h"
+#include "Overlay.h"
+#include "Plugins.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "UserEdit.h"
 #include "UserInformation.h"
+#include "UserModel.h"
+#include "VersionCheck.h"
+#include "ViewCert.h"
 
 #define ACTOR_INIT \
 	ClientUser *pSrc=NULL; \
@@ -262,6 +264,8 @@ void MainWindow::msgUserState(const MumbleProto::UserState &msg) {
 			pmModel->setFriendName(pDst, name);
 		if (Database::isLocalMuted(pDst->qsHash))
 			pDst->setLocalMute(true);
+		if (Database::isLocalIgnored(pDst->qsHash))
+			pDst->setLocalIgnore(true);
 	}
 
 	if (bNewUser)
@@ -429,6 +433,10 @@ void MainWindow::msgUserState(const MumbleProto::UserState &msg) {
 
 			pmModel->moveUser(pDst, c);
 
+			if (pDst == pSelf) {
+				g.mw->updateChatBar();
+			}
+
 			if (log && (pDst != pSelf) && (pDst->cChannel == pSelf->cChannel)) {
 				if (pDst == pSrc)
 					g.l->log(Log::ChannelJoin, tr("%1 entered channel.").arg(Log::formatClientUser(pDst, Log::Target)));
@@ -569,6 +577,11 @@ void MainWindow::msgChannelRemove(const MumbleProto::ChannelRemove &msg) {
 void MainWindow::msgTextMessage(const MumbleProto::TextMessage &msg) {
 	ACTOR_INIT;
 	QString target;
+
+	// Silently drop the message if this user is set to "ignore"
+	if (pSrc && pSrc->bLocalIgnore)
+		return;
+
 	const QString &plainName = pSrc ? pSrc->qsName : tr("Server", "message from");
 	const QString &name = pSrc ? Log::formatClientUser(pSrc, Log::Source) : tr("Server", "message from");
 
@@ -721,6 +734,10 @@ void MainWindow::msgCodecVersion(const MumbleProto::CodecVersion &msg) {
 	int alpha = msg.has_alpha() ? msg.alpha() : -1;
 	int beta = msg.has_beta() ? msg.beta() : -1;
 	bool pref = msg.prefer_alpha();
+
+#ifdef USE_OPUS
+	g.bOpus = msg.opus();
+#endif
 
 	// Workaround for broken 1.2.2 servers
 	if (g.sh && g.sh->uiVersion == 0x010202 && alpha != -1 && alpha == beta) {

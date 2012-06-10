@@ -200,6 +200,7 @@ int main(int argc, char **argv) {
 	bool readPw = false;
 #endif
 
+	qsrand(QDateTime::currentDateTime().toTime_t());
 	qInstallMsgHandler(murmurMessageOutput);
 
 #ifdef Q_OS_WIN
@@ -282,6 +283,9 @@ int main(int argc, char **argv) {
 		}
 	}
 
+#ifdef Q_OS_UNIX
+	inifile = unixhandler.trySystemIniFiles(inifile);
+#endif
 
 	Meta::mp.read(inifile);
 

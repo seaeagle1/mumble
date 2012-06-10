@@ -28,12 +28,14 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "Server.h"
-#include "ServerUser.h"
+#include "murmur_pch.h"
+
 #include "Channel.h"
 #include "Group.h"
 #include "Meta.h"
+#include "Server.h"
 #include "ServerDB.h"
+#include "ServerUser.h"
 #include "Version.h"
 
 /*!
@@ -50,7 +52,7 @@
   If recursion is activated all temporary memberships in related channels will also be cleared.
 */
 
-void Server::setUserState(User *pUser, Channel *cChannel, bool mute, bool deaf, bool suppressed, bool prioritySpeaker, const QString &comment) {
+void Server::setUserState(User *pUser, Channel *cChannel, bool mute, bool deaf, bool suppressed, bool prioritySpeaker, const QString& name, const QString &comment) {
 	bool changed = false;
 
 	if (deaf)
@@ -85,11 +87,16 @@ void Server::setUserState(User *pUser, Channel *cChannel, bool mute, bool deaf, 
 			setInfo(pUser->iId, info);
 		}
 	}
+	if (name != pUser->qsName) {
+		changed = true;
+		mpus.set_name(u8(name));
+	}
 
 	pUser->bDeaf = deaf;
 	pUser->bMute = mute;
 	pUser->bSuppress = suppressed;
 	pUser->bPrioritySpeaker = prioritySpeaker;
+	pUser->qsName = name;
 	hashAssign(pUser->qsComment, pUser->qbaCommentHash, comment);
 
 	if (cChannel != pUser->cChannel) {
@@ -226,13 +233,16 @@ void Server::sendTextMessage(Channel *cChannel, ServerUser *pUser, bool tree, co
 	}
 }
 
-void Server::setTempGroups(int userid, Channel *cChannel, const QStringList &groups) {
+void Server::setTempGroups(int userid, int sessionId, Channel *cChannel, const QStringList &groups) {
 	if (! cChannel)
 		cChannel = qhChannels.value(0);
 
 	Group *g;
-	foreach(g, cChannel->qhGroups)
+	foreach(g, cChannel->qhGroups) {
 		g->qsTemporary.remove(userid);
+		if (sessionId != 0)
+			g->qsTemporary.remove(- sessionId);
+	}
 
 	QString gname;
 	foreach(gname, groups) {
@@ -241,6 +251,8 @@ void Server::setTempGroups(int userid, Channel *cChannel, const QStringList &gro
 			g = new Group(cChannel, gname);
 		}
 		g->qsTemporary.insert(userid);
+		if (sessionId != 0)
+			g->qsTemporary.insert(- sessionId);
 	}
 
 	User *p = qhUsers.value(userid);
@@ -275,7 +287,7 @@ void Server::connectAuthenticator(QObject *obj) {
 	connect(this, SIGNAL(unregisterUserSig(int &, int)), obj, SLOT(unregisterUserSlot(int &, int)));
 	connect(this, SIGNAL(getRegisteredUsersSig(const QString &, QMap<int, QString> &)), obj, SLOT(getRegisteredUsersSlot(const QString &, QMap<int, QString> &)));
 	connect(this, SIGNAL(getRegistrationSig(int &, int, QMap<int, QString> &)), obj, SLOT(getRegistrationSlot(int &, int, QMap<int, QString> &)));
-	connect(this, SIGNAL(authenticateSig(int &, QString &, const QList<QSslCertificate> &, const QString &, bool, const QString &)), obj, SLOT(authenticateSlot(int &, QString &, const QList<QSslCertificate> &, const QString &, bool, const QString &)));
+	connect(this, SIGNAL(authenticateSig(int &, QString &, int, const QList<QSslCertificate> &, const QString &, bool, const QString &)), obj, SLOT(authenticateSlot(int &, QString &, int, const QList<QSslCertificate> &, const QString &, bool, const QString &)));
 	connect(this, SIGNAL(setInfoSig(int &, int, const QMap<int, QString> &)), obj, SLOT(setInfoSlot(int &, int, const QMap<int, QString> &)));
 	connect(this, SIGNAL(setTextureSig(int &, int, const QByteArray &)), obj, SLOT(setTextureSlot(int &, int, const QByteArray &)));
 	connect(this, SIGNAL(idToNameSig(QString &, int)), obj, SLOT(idToNameSlot(QString &, int)));
@@ -288,7 +300,7 @@ void Server::disconnectAuthenticator(QObject *obj) {
 	disconnect(this, SIGNAL(unregisterUserSig(int &, int)), obj, SLOT(unregisterUserSlot(int &, int)));
 	disconnect(this, SIGNAL(getRegisteredUsersSig(const QString &, QMap<int, QString> &)), obj, SLOT(getRegisteredUsersSlot(const QString &, QMap<int, QString> &)));
 	disconnect(this, SIGNAL(getRegistrationSig(int &, int, QMap<int, QString> &)), obj, SLOT(getRegistrationSlot(int &, int, QMap<int, QString> &)));
-	disconnect(this, SIGNAL(authenticateSig(int &, QString &, const QList<QSslCertificate> &, const QString &, bool, const QString &)), obj, SLOT(authenticateSlot(int &, QString &, const QList<QSslCertificate> &, const QString &, bool, const QString &)));
+	disconnect(this, SIGNAL(authenticateSig(int &, QString &, int, const QList<QSslCertificate> &, const QString &, bool, const QString &)), obj, SLOT(authenticateSlot(int &, QString &, int, const QList<QSslCertificate> &, const QString &, bool, const QString &)));
 	disconnect(this, SIGNAL(setInfoSig(int &, int, const QMap<int, QString> &)), obj, SLOT(setInfoSlot(int &, int, const QMap<int, QString> &)));
 	disconnect(this, SIGNAL(setTextureSig(int &, int, const QByteArray &)), obj, SLOT(setTextureSlot(int &, int, const QByteArray &)));
 	disconnect(this, SIGNAL(idToNameSig(QString &, int)), obj, SLOT(idToNameSlot(QString &, int)));

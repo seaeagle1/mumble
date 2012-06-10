@@ -15,6 +15,10 @@ CONFIG *= ordered debug_and_release
     SUBDIRS *= celt-0.7.0-build celt-0.11.0-build
   }
 
+  CONFIG(opus) {
+	SUBDIRS *= opus-build
+  }
+
   SUBDIRS *= src/mumble
 
   !CONFIG(no-plugins) {
@@ -23,6 +27,9 @@ CONFIG *= ordered debug_and_release
 
   win32 {
     SUBDIRS *= overlay
+    !CONFIG(no-g15) {
+      SUBDIRS *= g15helper
+    }
   }
 
   unix:!macx:!CONFIG(no-overlay) {

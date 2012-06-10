@@ -29,20 +29,23 @@
 */
 
 #ifdef USE_DBUS
-#ifndef _DBUS_H
-#define _DBUS_H
+#ifndef DBUS_H_
+#define DBUS_H_
 
-#include "murmur_pch.h"
+#include <QtDBus/QDBusAbstractAdaptor>
+#include <QtDBus/QDBusConnection>
 
-#include "User.h"
+#include "ACL.h"
 #include "Channel.h"
 #include "Group.h"
-#include "ACL.h"
+#include "Meta.h"
 #include "Server.h"
 #include "ServerDB.h"
-#include "Meta.h"
+#include "User.h"
 
 struct Ban;
+class QDBusObjectPath;
+class QDBusMessage;
 
 struct PlayerInfo {
 	unsigned int session;
@@ -143,7 +146,7 @@ class MurmurDBus : public QDBusAbstractAdaptor {
 		static void registerTypes();
 	public slots:
 		// These have the result ref as the first parameter, so won't be converted to DBus
-		void authenticateSlot(int &res, QString &uname, const QList<QSslCertificate> &certs, const QString &certhash, bool strong, const QString &pw);
+		void authenticateSlot(int &res, QString &uname, int sessionId, const QList<QSslCertificate> &certs, const QString &certhash, bool strong, const QString &pw);
 		void registerUserSlot(int &res, const QMap<int, QString> &);
 		void unregisterUserSlot(int &res, int id);
 		void getRegisteredUsersSlot(const QString &filter, QMap<int, QString> &res);
